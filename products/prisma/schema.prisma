@@ -1,0 +1,30 @@
+generator client {
+  provider      = "prisma-client"
+  output        = "../node_modules/.prisma/client"
+  binaryTargets = ["native", "nativeEnums", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========================
+// Основные сущности ТОЛЬКО для продуктов
+// ========================
+model Product {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  name        String
+  slug        String   @unique
+  description String?
+  price       Int
+  sku         String   @unique
+  images      String[] // Массив изображений
+  categoryId  String // ID категории (без relation)
+  userId      String? // ID владельца/создателя (может быть null)
+  inStock     Boolean  @default(true)
+  stockCount  Int      @default(0)
+
+  @@map("products")
+}
