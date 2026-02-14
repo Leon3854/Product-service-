@@ -3,5 +3,5 @@
 
 
 ## 1. Цель проекта (Для чего надо)
-Разработать (pet) микросервисный проект для отработки навыков проектирования распределенных систем, работы с современным бэкенд-стеком (NestJS, TypeScript, PostgreSQL, Prisma, Kafka, Redis, GraphQL, WebSocket, CI/CD Pipeline (GitHub Actions)).
+Разработать (pet) микросервисный проект для отработки навыков проектирования распределенных систем, работы с современным бэкенд-стеком (Docker, NestJS, TypeScript, PostgreSQL, Prisma, Kafka, Redis, GraphQL, WebSocket, CI/CD Pipeline (GitHub Actions)).
 Проект имитирует часть функциональности маркетплейса, ответственную за каталог товаров и систему уведомлений.
