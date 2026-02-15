@@ -9,7 +9,7 @@ COPY package*.json ./
 
 # Устанавливаем зависимости и генерируем Prisma
 # RUN npm ci && npx prisma generate
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Копируем исходный код
 COPY . .
