@@ -51,6 +51,7 @@ services:
   # Redis
   redis:
     image: redis:7-alpine
+    command: redis-server --requirepass my_super_secret_password
     ports:
       - '6379:6379'
     volumes:
