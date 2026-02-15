@@ -39,8 +39,6 @@ Real-time Gateway: NestJS + WebSockets + Redis (для масштабирова�
 
 Кэш: Redis
 
-CMS: Payload CMS (отдельный сервис для админки)
-
 CI/CD: GitHub Actions, Docker, GitHub Container Registry
 
 Инфраструктура: Docker, Docker Compose (для локальной разработки)
