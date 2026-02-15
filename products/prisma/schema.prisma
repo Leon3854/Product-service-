@@ -12,19 +12,32 @@ datasource db {
 // Основные сущности ТОЛЬКО для продуктов
 // ========================
 model Product {
-  id          String   @id @default(uuid())
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id          String    @id @default(uuid())
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
   name        String
-  slug        String   @unique
+  // slug        String   @unique
   description String?
   price       Int
-  sku         String   @unique
-  images      String[] // Массив изображений
-  categoryId  String // ID категории (без relation)
-  userId      String? // ID владельца/создателя (может быть null)
-  inStock     Boolean  @default(true)
-  stockCount  Int      @default(0)
+  // weight      Int?
+  // sku         String   @unique
+  // tags        String[]
+  // images      String[] // Массив изображений
+  // categoryId  String // ID категории (без relation)
+  // userId      String? // ID владельца/создателя (может быть null)
+  // inStock     Boolean  @default(true)
+  isActive    Boolean?  @default(true)
+  // stockCount  Int      @default(0)
+  deletedAt   DateTime?
+  deletedBy   String?
+  updatedBy   String?
 
+  // "алфавитный указатьель" для быстрого поиска или поиск будет происходит 
+  // мгновенно по имени а не по всей базе что сократит время и ресурсы
+  @@index([name])
+  @@index([price])
+  @@index([createdAt])
+  @@index([isActive])
+  // 
   @@map("products")
 }
