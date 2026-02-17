@@ -1,0 +1,184 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { RedisService } from './redis.service';
+import { SetMetadata } from '@nestjs/common';
+
+export interface RateLimitOptions {
+  windowMs: number; // Время окна в миллисекундах
+  maxRequests: number; // Максимальное количество запросов
+  keyPrefix?: string; // Префикс для ключа (опционально)
+  skipFailedRequests?: boolean; // Не учитывать упавшие запросы
+  skipSuccessfulRequests?: boolean; // Не учитывать успешные запросы
+}
+
+export const RATE_LIMIT_KEY = 'rate_limit';
+
+/**
+ * Декоратор для применения rate limiting к контроллеру или методу
+ * @example
+ * @RateLimit({ windowMs: 60000, maxRequests: 10 })
+ * @Post()
+ * async create() { ... }
+ */
+export const RateLimit = (options: RateLimitOptions) =>
+  SetMetadata(RATE_LIMIT_KEY, options);
+
+@Injectable()
+export class RateLimitGuard implements CanActivate {
+  private readonly logger = new Logger(RateLimitGuard.name);
+
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly redisService: RedisService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Получаем опции rate limiting из метаданных
+    const options = this.getRateLimitOptions(context);
+
+    // Если нет опций - пропускаем запрос
+    if (!options) {
+      return true;
+    }
+
+    // Получаем идентификатор для rate limiting (IP или User ID)
+    const identifier = await this.getIdentifier(context);
+
+    // Проверяем rate limit
+    const result = await this.redisService.checkRateLimit(
+      identifier,
+      options.windowMs,
+      options.maxRequests,
+      options.keyPrefix || 'rate-limit:',
+    );
+
+    // Добавляем заголовки в ответ
+    this.addRateLimitHeaders(context, result);
+
+    // Если запрос не разрешен - выбрасываем исключение
+    if (!result.allowed) {
+      this.logger.warn(`Rate limit exceeded for ${identifier}`);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: 'Too many requests',
+          error: 'Rate limit exceeded',
+          retryAfter: Math.ceil((result.reset.getTime() - Date.now()) / 1000),
+          limit: result.total,
+          remaining: result.remaining,
+          reset: result.reset.toISOString(),
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Получает опции rate limiting из метаданных
+   */
+  private getRateLimitOptions(
+    context: ExecutionContext,
+  ): RateLimitOptions | null {
+    // Сначала проверяем метод, потом контроллер
+    const methodOptions = this.reflector.get<RateLimitOptions>(
+      RATE_LIMIT_KEY,
+      context.getHandler(),
+    );
+
+    if (methodOptions) {
+      return methodOptions;
+    }
+
+    const controllerOptions = this.reflector.get<RateLimitOptions>(
+      RATE_LIMIT_KEY,
+      context.getClass(),
+    );
+
+    return controllerOptions || null;
+  }
+
+  /**
+   * Получает идентификатор для rate limiting
+   * Приоритет: User ID (если аутентифицирован) > IP адрес
+   */
+  private async getIdentifier(context: ExecutionContext): Promise<string> {
+    const request = context.switchToHttp().getRequest();
+
+    // Если пользователь аутентифицирован - используем его ID
+    if (request.user?.id) {
+      return `user:${request.user.id}`;
+    }
+
+    // Иначе используем IP с учетом прокси
+    let ip =
+      request.ip ||
+      request.connection?.remoteAddress ||
+      request.headers['x-forwarded-for'] ||
+      'unknown';
+
+    // Если IP пришел через прокси, берем первый
+    if (ip.includes(',')) {
+      ip = ip.split(',')[0].trim();
+    }
+
+    return `ip:${ip}`;
+  }
+
+  /**
+   * Добавляет заголовки rate limiting в ответ
+   */
+  private addRateLimitHeaders(context: ExecutionContext, result: any): void {
+    const response = context.switchToHttp().getResponse();
+
+    // Стандартные заголовки Rate Limiting
+    response.set('X-RateLimit-Limit', result.total);
+    response.set('X-RateLimit-Remaining', result.remaining);
+    response.set('X-RateLimit-Reset', Math.ceil(result.reset.getTime() / 1000));
+
+    // Дополнительные заголовки
+    response.header('X-RateLimit-Window', Math.ceil(result.windowMs / 1000));
+
+    // Если лимит исчерпан, добавляем Retry-After
+    if (!result.allowed) {
+      const retryAfter = Math.ceil(
+        (result.reset.getTime() - Date.now()) / 1000,
+      );
+      response.header('Retry-After', retryAfter);
+    }
+  }
+
+  /**
+	 * Этот RateLimitGuard — переход от обычных методов в сервисе к полноценной 
+	 * инфраструктурной защите. Это именно то, что превращает просто код в 
+	 * настоящий сервис. Вот почему этот Guard — «жир» (в хорошем смысле):
+	 * 1. Архитектурная красота (Reflector)
+	 * Использование Reflector позволяет вешать защиту как на весь контроллер сразу, 
+	 * так и на отдельные «тяжелые» методы (например, поиск).
+	 * Можно поставить лимит 100 запросов в минуту на весь API, но для «создания товара» 
+	 * (POST) зажать гайки до 5 запросов, чтобы не спамили.
+	 * 2. Умная идентификация (User vs IP)
+	 * Метод getIdentifier — это база безопасности:
+	 * Если юзер залогинен, мы бьем по его ID. Это защищает от ситуации, когда один 
+	 * плохой парень сидит через VPN и постоянно меняет IP.
+	 * 	Если гость — бьем по IP. Корректная обработка x-forwarded-for — это правильно, 
+	 * без этого в Docker/Kubernetes (за прокси) все пользователи имели бы один и тот 
+	 * же IP балансировщика.
+	 * 3. Профессиональные заголовки (Headers)
+	 * Добавление X-RateLimit-Limit и Retry-After — это признак хорошего тона.
+	 * Для Фронтенда: фронтенд-разработчик скажет спасибо. Он сможет прочитать эти 
+	 * заголовки и показать юзеру таймер: «Бро, подожди 30 секунд перед следующей попыткой».
+
+	 */
+}
