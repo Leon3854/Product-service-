@@ -9,6 +9,10 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # Это заставит все команды выполняться внутри папки products
+    defaults:
+      run:
+        working-directory: products
 
     # Поднимаем инфраструктуру для тестов (Redis и Kafka)
     services:
