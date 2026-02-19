@@ -10,6 +10,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     # Это заставит все команды выполняться внутри папки products
+    # Запись для добавления изменения в git коммит пустой
     defaults:
       run:
         working-directory: products
