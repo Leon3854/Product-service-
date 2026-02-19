@@ -1,8 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { KafkaProducerService } from 'src/kafka/kafka.producer.service';
-import { PrismaService } from 'src/prisma.service';
-import { RedisService } from 'src/redis/redis.service';
+import { KafkaProducerService } from '../kafka/kafka.producer.service';
+import { PrismaService } from '../prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { Product } from './types/product.graphql-types';
 import { CreateProductDto } from './dto/create-product.dto';
 
