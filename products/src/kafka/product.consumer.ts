@@ -9,6 +9,7 @@ import {
 import { Kafka, Consumer, EachMessagePayload } from 'kafkajs';
 import { KafkaProducerService } from './kafka.producer.service';
 import { AnyProductEvent } from './dto/product-created.event.dto';
+import { ProductGateway } from '../product/gateways/product.gateway';
 @Injectable()
 export class ProductConsumer
   implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy
@@ -18,6 +19,7 @@ export class ProductConsumer
 
   constructor(
     private readonly kafkaProducer: KafkaProducerService, // Внедряем продюсер, чтобы отправлять ответные события
+    private readonly productGateway: ProductGateway, // Внедряем наш шлюз
   ) {
     const kafka = new Kafka({
       clientId: 'product-service-consumer',
@@ -105,6 +107,9 @@ export class ProductConsumer
         timestamp: event.timestamp, // Используем время из самого события
       });
       this.logger.log(`📊 Category [${event.categoryId}] incremented`);
+      //
+      // НОВОЕ: Отправляем пуш-уведомление на фронтенд в реальном времени
+      this.productGateway.notifyProductCreated(event);
     } catch (error) {
       this.logger.error(
         `❌ Error incrementing category [${event.categoryId}]:`,
