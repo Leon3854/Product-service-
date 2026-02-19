@@ -1,0 +1,59 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # Поднимаем инфраструктуру для тестов (Redis и Kafka)
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+      # Для полноценной Kafka в CI обычно используют упрощенный вариант
+      kafka:
+        image: bitnami/kafka:latest
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          ALLOW_PLAINTEXT_LISTENER: yes
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run Linter
+        run: npm run lint
+
+      - name: Check Types (TSC)
+        run: npx tsc --noEmit
+
+      - name: Build Application
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/db # Заглушка для билда
+          KAFKA_BROKERS: localhost:9092
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Run Tests
+        run: npm run test
