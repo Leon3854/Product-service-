@@ -105,6 +105,8 @@ export class ProductConsumer
         timestamp: event.timestamp, // Используем время из самого события
       });
       this.logger.log(`📊 Category [${event.categoryId}] incremented`);
+      // НОВОЕ: Отправляем пуш-уведомление на фронтенд в реальном времени
+      this.productGateway.notifyProductCreated(event);
     } catch (error) {
       this.logger.error(
         `❌ Error incrementing category [${event.categoryId}]:`,
