@@ -1,25 +1,51 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
-import { App } from 'supertest/types';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { PrismaService } from '../src/prisma.service';
+import { KafkaProducerService } from '../src/kafka/kafka.producer.service';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+describe('Product E2E', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
 
-  beforeEach(async () => {
+  // Мокаем Кафку, чтобы тест не завис на попытке подключения
+  const mockKafka = { send: jest.fn().mockResolvedValue(null) };
+
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(KafkaProducerService) // Подменяем реальную Кафку на мок
+      .useValue(mockKafka)
+      .compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({ transform: true }));
     await app.init();
+
+    prisma = app.get<PrismaService>(PrismaService);
   });
 
-  it('/ (GET)', () => {
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('/products (POST) - создание товара', async () => {
+    const payload = {
+      name: 'iPhone 15',
+      price: 1000,
+      slug: 'iphone-15',
+      categoryId: 'some-uuid',
+    };
+
     return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+      .post('/products')
+      .send(payload)
+      .expect(201)
+      .then((res) => {
+        expect(res.body.name).toBe(payload.name);
+        expect(mockKafka.send).toHaveBeenCalled(); // Проверяем, что событие ушло
+      });
   });
 });
