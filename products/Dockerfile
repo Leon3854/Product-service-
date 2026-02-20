@@ -20,17 +20,18 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Копируем только необходимые файлы из первого этапа
+# КРИТИЧНО: Добавляем netcat для работы команды nc
+RUN apk add --no-cache netcat-openbsd
+
+# Копируем только необходимое
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
-# Указываем переменную окружения для Production
 ENV NODE_ENV=production
-
-# Открываем порты (REST и gRPC если будет)
 EXPOSE 3000
 
 # Команда запуска
-CMD ["node", "dist/main"]
+# Скрипт запуска: ждем порт 5432 на хосте products-db, затем пушим миграции и стартуем
+CMD ["sh", "-c", "until nc -z products-db 5432; do echo 'Waiting for DB...'; sleep 2; done; npx prisma db push && node dist/main"]
