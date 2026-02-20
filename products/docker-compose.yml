@@ -1,32 +1,32 @@
 services:
   products-service:
     build:
-      context: .
-    env_file: .env
+      context: ./products # Указываем путь к папке с микросервисом
+      dockerfile: Dockerfile
+    env_file: ./products/.env
     environment:
       - DATABASE_URL=postgresql://postgres:123456@products-db:5432/products_db
-      - PORT=3000
       - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - KAFKA_BROKERS=kafka:29092 # Внутренний адрес для Docker-сети
     ports:
-      - '3003:3000'
+      - '3003:3000' # Твой порт для доступа к API
     depends_on:
       products-db:
         condition: service_healthy
-      rabbitmq:
+      kafka:
         condition: service_started
       redis:
         condition: service_started
     restart: unless-stopped
 
   products-db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       POSTGRES_DB: products_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123456
     ports:
-      - '5436:5432'
+      - '5436:5432' # Внешний порт 5436 для подключения из IDE (DataGrip/DBeaver)
     volumes:
       - products-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -36,26 +36,34 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # RabbitMQ(arm64 compatible)
-  rabbitmq:
-    image: rabbitmq:3.12-management # стандартный образ проще для начала
-    container_name: rabbitmq
-    ports:
-      - '5672:5672'
-      - '15672:15672'
-    environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
-    restart: unless-stopped
-
-  # Redis
+  # Redis (убрали обязательный пароль для простоты разработки, как в твоем сервисе)
   redis:
     image: redis:7-alpine
-    command: redis-server --requirepass my_super_secret_password
     ports:
       - '6379:6379'
     volumes:
       - redis_data:/data
+    restart: stopped-unless
+
+  # Kafka Infrastructure (Оптимизировано для Mac M1/M2)
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    restart: unless-stopped
+
+  kafka:
+    image: bitnami/kafka:latest
+    ports:
+      - '9092:9092' # Внешний порт (для тестов с хоста)
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:29092,EXTERNAL://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
     restart: unless-stopped
 
 volumes:
