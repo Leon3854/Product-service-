@@ -1,9 +1,9 @@
 services:
   products-service:
     build:
-      context: ./products # Указываем путь к папке с микросервисом
+      context: . # Указываем путь к папке с микросервисом
       dockerfile: Dockerfile
-    env_file: ./products/.env
+    env_file: .env
     environment:
       - DATABASE_URL=postgresql://postgres:123456@products-db:5432/products_db
       - REDIS_URL=redis://redis:6379
@@ -47,7 +47,7 @@ services:
 
   # Kafka Infrastructure (Оптимизировано для Mac M1/M2)
   zookeeper:
-    image: bitnami/zookeeper:latest
+    image: bitnami/zookeeper:3.9
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
     restart: unless-stopped

@@ -72,6 +72,14 @@ export class KafkaProducerService implements OnModuleInit, OnModuleInit {
     }
   }
 
+  /**
+   * Универсальный метод отправки событий в шину Kafka.
+   * Реализует гарантированный порядок сообщений через Partition Keys.
+   *
+   * @param topic Название топика (напр. 'product.created')
+   * @param message Объект события, реализующий интерфейс ProductEvent
+   * @throws Ошибку публикации, если брокер недоступен (важно для транзакционности в Service)
+   */
   async send(topic: string, message: ProductEvent): Promise<void> {
     try {
       const record = {

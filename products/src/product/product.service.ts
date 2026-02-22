@@ -56,6 +56,10 @@ export class ProductService {
       async () => {
         this.logger.debug('Cache miss - fetching all products from database');
         return this.prisma.product.findMany({
+          // N+1
+          include: {
+            category: true,
+          },
           orderBy: { createdAt: 'desc' },
         });
       },
@@ -75,6 +79,30 @@ export class ProductService {
         this.logger.debug(`Cache miss - fetching product ${id} from database`);
         return this.prisma.product.findUnique({
           where: { id },
+        });
+      },
+      this.CACHE_TTL.PRODUCT,
+    );
+  }
+
+  /**
+   * Получение всех по имени с кэшированием
+   */
+  async byName(name: string): Promise<Product | null> {
+    const cacheKey = this.CACHE_KEYS.PRODUCT_BY_NAME(name);
+
+    return this.redisService.cache<Product | null>(
+      cacheKey,
+      async () => {
+        this.logger.debug(
+          `Cache miss - fetching product by name ${name} from database`,
+        );
+        return this.prisma.product.findFist({
+          where: { name },
+          // РЕШЕНИЕ N+1:
+          include: {
+            category: true, // Решение N+1 для вложенного GraphQL запроса
+          },
         });
       },
       this.CACHE_TTL.PRODUCT,
@@ -438,8 +466,8 @@ export class ProductService {
   /**
    * Инвалидация кэша продукта
    * Защита от «грязных данных» которые вынесены в отдельные private методы.
-   * Теперь, если решишь добавить кэширование по цене или по бренду,
-   * тебе нужно будет изменить код только в одном месте (в этом методе),
+   * Теперь, если нужно добавить кэширование по цене или по бренду,
+   * нужно будет изменить код только в одном месте (в этом методе),
    * и во всем сервисе инвалидация обновится автоматически.
    */
   private async invalidateProductCache(
