@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { KafkaProducerService } from '../kafka/kafka.producer.service';
@@ -8,21 +9,53 @@ import { CreateProductDto } from './dto/create-product.dto';
 
 @Injectable()
 export class ProductService {
+  /**
+   * Инициализация логгера с контекстом текущего сервиса.
+   * Позволяет фильтровать события в распределенной системе мониторинга
+   * и упрощает отладку цепочек событий Kafka/Redis.
+   */
+  /**
+   * Стандартный Logger из NestJS поддерживает уровни (debug, warn, error),
+   * позволяет добавлять временные метки и, самое главное, привязывает
+   * сообщения к конкретному классу, что критично для микросервисов в Docker
+   * он лучше console.log
+   */
   private readonly logger = new Logger(ProductService.name);
 
   // Константы для кэширования
+  /**
+   * Конфигурация времени жизни (TTL) для различных типов данных в Redis.
+   * Настройки оптимизированы для обеспечения высокой доступности (High Availability)
+   * и минимизации нагрузки на PostgreSQL при сохранении актуальности витрины.
+   */
   private readonly CACHE_TTL = {
+    // Карточка товара: данные меняются редко, допустим кэш на 5 минут
     PRODUCT: 300, // 5 минут для отдельного продукта
+    // Общие списки: высокая частота обновлений, инвалидация каждые 60 секунд
+    // для поддержания актуальности сортировки и фильтров
     PRODUCT_LIST: 60, // 1 минута для списка
+    // Списки категорий: баланс между нагрузкой и скоростью навигации по каталогу
     CATEGORY_PRODUCTS: 120, // 2 минуты для продуктов по категории
   };
 
+  /**
+   * Справочник ключей кэширования Redis для модуля Products.
+   * Централизованное управление ключами предотвращает коллизии имен в общем хранилище
+   * и обеспечивает консистентность при инвалидации данных.
+   */
   private readonly CACHE_KEYS = {
+    // Глобальный список (используется для массовой инвалидации через Redis Pattern)
+    // «Коллизии имен» защита от дублирования имен из разных сервисов через префикс
+    // products:all решана эта проблема теперь имя уникально
     ALL_PRODUCTS: 'products:all',
+    // Ключи для прямого доступа по ID (Primary Key)
     PRODUCT: (id: string) => `product:${id}`,
+    // Ключи для SEO-оптимизированного поиска по Slug
     PRODUCT_BY_SLUG: (slug: string) => `product:slug:${slug}`,
+    // Кэширование выборок по категориям (для оптимизации вложенных GraphQL запросов)
     CATEGORY_PRODUCTS: (categoryId: string) =>
       `category:${categoryId}:products`,
+    // Атомарный счетчик общего количества товаров в системе
     PRODUCT_COUNT: 'products:count',
   };
 
@@ -45,21 +78,30 @@ export class ProductService {
 
   /**
    * Получение всех продуктов с кэшированием
+   * Получение полного каталога товаров с поддержкой многоуровневого кэширования.
+   * Реализует паттерн Cache-Aside (сначала кэш, потом база) для снижения Read-нагрузки на основную БД.
+   *
+   * @returns Массив товаров с предварительно загруженными данными категорий
    */
   // Получаем все продукты
   async getAll(): Promise<Product[]> {
     const cacheKey = this.CACHE_KEYS.ALL_PRODUCTS;
 
-    // Используем cache() метод из RedisService для автоматического кэширования
+    // Используем абстракцию RedisService для автоматизации логики "проверь кэш -> запрос в БД -> сохрани"
     return this.redisService.cache<Product[]>(
       cacheKey,
       async () => {
         this.logger.debug('Cache miss - fetching all products from database');
         return this.prisma.product.findMany({
-          // N+1
+          // Решение проблемы N+1: выполняем Eager Loading (жадную загрузку)
+          // include здесь не просто так, а для предотвращения лавинообразных запросов к базе при отрисовке категорий в GraphQL.
+          // связанных категорий через JOIN/Batch запрос на уровне БД.
           include: {
             category: true,
           },
+          // Гарантируем предсказуемую сортировку для корректного кэширования
+          // «предсказуемой сортировки»: если база вернет данные в разном порядке,
+          // кэш может стать неконсистентным или бесполезным для пагинации.
           orderBy: { createdAt: 'desc' },
         });
       },

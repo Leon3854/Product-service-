@@ -340,6 +340,20 @@ export class RedisService implements OnModuleDestroy {
   }
 
   // Кэширование с автоматической инвалидацией
+  /**
+   * Высокоуровневая обертка для кэширования с защитой от "Cache Stampede" (эффекта собаки).
+   * Реализует механизм распределенной блокировки (Distributed Locking) через Redis SET NX.
+   *
+   * @param key Уникальный ключ кэша
+   * @param fetchFn Callback-функция для получения данных из БД (выполняется только один раз)
+   * @param ttlSeconds Время жизни кэша (по умолчанию 300с)
+   * @returns Десериализованные данные из кэша или свежий результат из fetchFn
+   *
+   * @description
+   * 1. При Cache Miss первый поток захватывает атомарный лок на 10с.
+   * 2. Остальные конкурентные запросы уходят в режим ожидания (Polling) с рекурсивным повтором.
+   * 3. Гарантирует выполнение ровно одного "тяжелого" запроса к БД при любом количестве входящих TCP-соединений.
+   */
   async cache<T>(
     key: string,
     fetchFn: () => Promise<T>,
@@ -350,15 +364,17 @@ export class RedisService implements OnModuleDestroy {
 
     if (client) {
       // 1. Пытаемся взять данные из кэша
+      // Пытаемся извлечь данные. Если "попадание" (HIT) — возвращаем немедленно.
       const cached = await this.get(key);
       if (cached) return JSON.parse(cached) as T;
 
-      // 2. Если в кэше пусто, пытаемся захватить "замок" (lock) на 10 секунд
-      // NX: только если ключа еще нет, EX: установить время жизни
+      // 2. Попытка захвата блокировки для предотвращения лавинообразной нагрузки на БД (Dogpile effect)
+      // NX гарантирует атомарность: только один клиент получит 'OK'
       const lockAcquired = await client.set(lockKey, 'locked', 'EX', 10, 'NX');
 
       if (!lockAcquired) {
         // 3. Если замок занят другим сервисом, ждем немного и пробуем кэш снова
+        // Если лок занят, ждем 200мс и повторяем проверку кэша (уже наполненного первым потоком)
         await new Promise((resolve) => setTimeout(resolve, 200));
         return this.cache(key, fetchFn, ttlSeconds); // Рекурсивный повтор
       }
@@ -366,6 +382,7 @@ export class RedisService implements OnModuleDestroy {
 
     // 4. Только ОДИН сервис (владелец замка) доходит до выполнения тяжелой функции
     try {
+      // Исполнение целевой бизнес-логики (Database Query)
       const data = await fetchFn();
 
       if (client) {
@@ -373,6 +390,7 @@ export class RedisService implements OnModuleDestroy {
       }
       return data;
     } finally {
+      // Критически важно: удаляем лок в блоке finally, чтобы избежать Deadlock при сбоях в fetchFn
       // 5. Обязательно освобождаем замок, чтобы не блокировать других в случае ошибки
       if (client) await client.del(lockKey);
     }
