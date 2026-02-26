@@ -42,6 +42,24 @@ export class RateLimitGuard implements CanActivate {
     private readonly redisService: RedisService,
   ) {}
 
+  // Этот метод — «контрольно-пропускной пункт» твоего API. Здесь ты показываешь, как Guard в NestJS превращается в активную защиту, взаимодействуя с Redis.
+  /**
+   * Основная логика валидации входящего запроса на соответствие лимитам (Rate Limiting).
+   * Реализует паттерн Middleware-фильтрации перед выполнением бизнес-логики контроллера.
+   *
+   * @param context Контекст выполнения NestJS (позволяет работать как с REST, так и с GraphQL/RPC).
+   * @returns Promise<boolean> - true, если лимит не превышен.
+   *
+   * @throws {HttpException} 429 (Too Many Requests) - если количество запросов
+   * за временное окно (Sliding Window) превысило допустимый порог.
+   *
+   * @description
+   * 1. Извлекает настройки лимитов (windowMs, maxRequests) из метаданных декораторов.
+   * 2. Идентифицирует субъект запроса (IP или JWT UserID) для точечной блокировки.
+   * 3. Обращается к RedisService для атомарной проверки состояния счетчика.
+   * 4. При превышении лимита возвращает детальную информацию: через сколько (retryAfter)
+   *    и когда (reset) доступ будет восстановлен, что соответствует стандартам RFC 6585.
+   */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Получаем опции rate limiting из метаданных
     const options = this.getRateLimitOptions(context);
