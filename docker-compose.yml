@@ -1,0 +1,53 @@
+services:
+  # 1. NestJS Микросервис
+  products-service:
+    build:
+      context: ./products
+    env_file: ./products/.env
+    ports:
+      - "3003:3000" # Доступ к API: http://localhost:3003
+    depends_on:
+      kafka:
+        condition: service_started
+    networks:
+      - app-network
+
+  # 2. Go Микросервис
+  inventory-go:
+    build:
+      context: ./inventory-go
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      kafka:
+        condition: service_started
+    networks:
+      - app-network
+
+  # 3. Kafka Инфраструктура
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
