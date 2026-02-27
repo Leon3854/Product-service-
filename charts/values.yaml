@@ -1,0 +1,33 @@
+# Главный файл с переменными (здесь меняем порты, образы, лимиты)
+
+# Количество одновременно работающих копий сервиса (для отказоустойчивости)
+replicaCount: 2
+
+image:
+  repository: your-docker-hub/products-service
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 3000
+
+# Настройки мониторинга для Kubernetes
+probes:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# Ограничения по ресурсам (чтобы сервис не "съел" весь сервер)
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
