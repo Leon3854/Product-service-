@@ -6,6 +6,7 @@ import { join } from 'path';
 import { ProductModule } from './product/product.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { HealthController } from './health/health.controller';
 
 /**
  * Корневой модуль приложения (Root Module).
@@ -32,7 +33,7 @@ import { AppService } from './app.service';
     // Теперь NestJS увидит твой ProductController и ProductResolver
     ProductModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
 export class AppModule {}

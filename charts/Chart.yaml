@@ -1,0 +1,7 @@
+# "Паспорт" чарта (имя, версия, описание)
+apiVersion: v2
+name: product-service
+description: Helm chart for NestJS Microservice with Kafka and Redis
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

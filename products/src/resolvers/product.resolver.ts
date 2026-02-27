@@ -8,7 +8,17 @@ import { RateLimitGuard, RateLimit } from '../redis/rate-limit.guard';
 
 // product.resolver.ts отвечает за уровень GraphQL-интерфейса. Если controller.ts — это дверь для REST-запросов,
 // то resolver — это точка входа для гибких GraphQL-запросов.
-
+/**
+ * GraphQL Резолвер для модуля Products.
+ * Выполняет роль контроллера в архитектуре GraphQL, делегируя выполнение
+ * бизнес-логики в ProductService. [INDEX 1]
+ *
+ * Ключевые функции:
+ * 1. Оркестрация: преобразует входящие GraphQL-запросы в вызовы методов сервиса.
+ * 2. Декоративное расширение: добавляет уровни защиты (RateLimit) и валидации (DTO)
+ *    без изменения кода самого сервиса. [INDEX 3]
+ * 3. Schema-First: автоматически формирует схему API на основе метаданных декораторов. [INDEX 2]
+ */
 @Resolver(() => Product)
 @UseGuards(RateLimitGuard) // Твоя защита работает и здесь!
 export class ProductResolver {
