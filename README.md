@@ -4,12 +4,12 @@
 
 ---
 
-## 🏗 Архитектурные особенности (Твои козыри на интервью)
+## 🏗 Архитектурные особенности
 
-1. **Polyglot Microservices:** Основная бизнес-логика реализована на **NestJS**, а высоконагруженный модуль складского учета (Inventory) — на **Golang** для минимизации задержек и потребления RAM. [INDEX 3]
-2. **Event-Driven Communication:** Синхронизация данных между сервисами через **Apache Kafka**. Гарантированный порядок событий (Message Ordering) через использование Partition Keys. [INDEX 2, 4]
+1. **Polyglot Microservices:** Основная бизнес-логика реализована на **NestJS**, а высоконагруженный модуль складского учета (Inventory) — на **Golang** для минимизации задержек и потребления RAM.
+2. **Event-Driven Communication:** Синхронизация данных между сервисами через **Apache Kafka**. Гарантированный порядок событий (Message Ordering) через использование Partition Keys.
 3. **Resilience & Caching:** Распределенное кэширование в **Redis** с механизмом **Distributed Locking (SET NX)** для защиты от Race Conditions и Cache Stampede.
-4. **Hybrid API:** Поддержка **REST** для внешних интеграций и **GraphQL** (Apollo) для гибких фронтенд-запросов (решена проблема N+1 через Prisma `include`). [INDEX 1]
+4. **Hybrid API:** Поддержка **REST** для внешних интеграций и **GraphQL** (Apollo) для гибких фронтенд-запросов (решена проблема N+1 через Prisma `include`).
 
 ---
 
@@ -18,8 +18,8 @@
 - **Languages:** TypeScript (NestJS), Golang (1.21+).
 - **Storage:** PostgreSQL (Prisma ORM), Redis (Cache & Rate Limiting).
 - **Infrastructure:** Apache Kafka, Docker & Docker Compose.
-- **Cloud Native:** **Kubernetes (K8s)**, **Helm Charts**, Liveness/Readiness Probes. [INDEX 5]
-- **CI/CD:** GitHub Actions (автоматическая сборка и валидация). [INDEX 6]
+- **Cloud Native:** **Kubernetes (K8s)**, **Helm Charts**, Liveness/Readiness Probes.
+- **CI/CD:** GitHub Actions (автоматическая сборка и валидация).
 
 ---
 
@@ -28,7 +28,7 @@
 Проект подготовлен к промышленной эксплуатации в K8s:
 
 - **Helm Charts:** Описаны в `/charts`, поддерживают конфигурацию ресурсов (limits/requests).
-- **Graceful Shutdown:** Реализована корректная остановка сервисов (завершение транзакций Prisma и закрытие Kafka-консьюмеров). [INDEX 2]
+- **Graceful Shutdown:** Реализована корректная остановка сервисов (завершение транзакций Prisma и закрытие Kafka-консьюмеров).
 - **Observability:** Эндпоинты `/health/live` и `/health/ready` для мониторинга состояния оркестратором.
 
 ---
