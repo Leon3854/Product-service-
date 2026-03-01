@@ -38,3 +38,5 @@ jest.config.js
 # Prisma
 *.db
 *.db-journal
+
+*.txt
